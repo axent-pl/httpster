@@ -37,6 +37,7 @@ type RequestMetrics struct {
 	StartTime            time.Time     `json:"start"`
 	Duration             time.Duration `json:"duration"`
 	DurationMilliseconds int64         `json:"durationMilliseconds"`
+	Status               string        `json:"status"`
 	Error                string        `json:"error"`
 }
 
@@ -46,12 +47,13 @@ func (rm *RequestMetrics) ToCSVRow() []string {
 		rm.StartTime.Format(time.RFC3339),
 		rm.Duration.String(),
 		fmt.Sprintf("%d", rm.DurationMilliseconds),
+		rm.Status,
 		rm.Error,
 	}
 }
 
 func GetRequestMetricsCSVHeader() []string {
-	return []string{"ID", "Start Time", "Duration", "Duration Milliseconds", "Error"}
+	return []string{"ID", "Start Time", "Duration", "Duration Milliseconds", "Status", "Error"}
 }
 
 func MakeRequest(client *http.Client, requestDefinition *RequestDefinition) (RequestMetrics, error) {
@@ -68,6 +70,7 @@ func MakeRequest(client *http.Client, requestDefinition *RequestDefinition) (Req
 		return requestMetrics, err
 	}
 	resp.Body.Close()
+	requestMetrics.Status = resp.Status
 	requestMetrics.Duration = time.Since(requestMetrics.StartTime)
 	requestMetrics.DurationMilliseconds = requestMetrics.Duration.Milliseconds()
 	return requestMetrics, nil
