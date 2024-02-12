@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"flag"
@@ -22,19 +21,6 @@ type RequestDefinition struct {
 	Body    string            `json:"body"`
 }
 
-type RequestMetrics struct {
-	ID                   string        `json:"id"`
-	StartTime            time.Time     `json:"start"`
-	Duration             time.Duration `json:"duration"`
-	DurationMilliseconds int64         `json:"durationMilliseconds"`
-	Error                string        `json:"error"`
-}
-
-type TestMetrics struct {
-	requestMetricsMux sync.Mutex
-	requestMetrics    []RequestMetrics
-}
-
 func (rd *RequestDefinition) PrepareRequest() (*http.Request, error) {
 	req, err := http.NewRequest(rd.Method, rd.URL, strings.NewReader(rd.Body))
 	if err != nil {
@@ -44,6 +30,14 @@ func (rd *RequestDefinition) PrepareRequest() (*http.Request, error) {
 		req.Header.Add(k, v)
 	}
 	return req, nil
+}
+
+type RequestMetrics struct {
+	ID                   string        `json:"id"`
+	StartTime            time.Time     `json:"start"`
+	Duration             time.Duration `json:"duration"`
+	DurationMilliseconds int64         `json:"durationMilliseconds"`
+	Error                string        `json:"error"`
 }
 
 func (rm *RequestMetrics) ToCSVRow() []string {
@@ -58,33 +52,6 @@ func (rm *RequestMetrics) ToCSVRow() []string {
 
 func GetRequestMetricsCSVHeader() []string {
 	return []string{"ID", "Start Time", "Duration", "Duration Milliseconds", "Error"}
-}
-
-func (tm *TestMetrics) ToCSV() (string, error) {
-	tm.requestMetricsMux.Lock()
-	defer tm.requestMetricsMux.Unlock()
-
-	var b bytes.Buffer
-	writer := csv.NewWriter(&b)
-
-	if err := writer.Write(GetRequestMetricsCSVHeader()); err != nil {
-		return "", fmt.Errorf("writing header to CSV failed: %v", err)
-	}
-
-	for _, metric := range tm.requestMetrics {
-		record := metric.ToCSVRow()
-		if err := writer.Write(record); err != nil {
-			return "", fmt.Errorf("writing record to CSV failed: %v", err)
-		}
-	}
-
-	writer.Flush()
-
-	if err := writer.Error(); err != nil {
-		return "", fmt.Errorf("finalizing CSV failed: %v", err)
-	}
-
-	return b.String(), nil
 }
 
 func MakeRequest(client *http.Client, requestDefinition *RequestDefinition) (RequestMetrics, error) {
@@ -106,31 +73,47 @@ func MakeRequest(client *http.Client, requestDefinition *RequestDefinition) (Req
 	return requestMetrics, nil
 }
 
-func RunTests(requestDefinitions []*RequestDefinition, threads int, duration time.Duration) (*TestMetrics, error) {
+func RunTests(requestDefinitions []*RequestDefinition, threads int, duration time.Duration) {
 	var wg sync.WaitGroup
-	var metrics TestMetrics = TestMetrics{}
 	var stopTime time.Time = time.Now().Add(duration)
+	var writer *csv.Writer = csv.NewWriter(os.Stdout)
+	var metricsChannel chan RequestMetrics = make(chan RequestMetrics, threads)
+
+	if err := writer.Write(GetRequestMetricsCSVHeader()); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing CSV header: %v", err)
+		return
+	}
 
 	wg.Add(threads)
 	for i := 0; i < threads; i++ {
 		go func(i int) {
 			defer wg.Done()
-			var threadMetrics []RequestMetrics = make([]RequestMetrics, 0)
 			client := &http.Client{}
 			for time.Now().Before(stopTime) {
 				for _, reqDefinition := range requestDefinitions {
-					requestMetrics, _ := MakeRequest(client, reqDefinition)
-					threadMetrics = append(threadMetrics, requestMetrics)
+					requestMetrics, err := MakeRequest(client, reqDefinition)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Error making request: %v", err)
+					}
+					metricsChannel <- requestMetrics
 				}
 			}
-			metrics.requestMetricsMux.Lock()
-			metrics.requestMetrics = append(metrics.requestMetrics, threadMetrics...)
-			metrics.requestMetricsMux.Unlock()
 		}(i)
 	}
+
+	go func() {
+		for requestMetrics := range metricsChannel {
+			csvRow := requestMetrics.ToCSVRow()
+			if err := writer.Write(csvRow); err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing CSV header: %v", err)
+			}
+			writer.Flush()
+		}
+	}()
+
 	wg.Wait()
 
-	return &metrics, nil
+	close(metricsChannel)
 }
 
 func main() {
@@ -160,11 +143,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	metrics, _ := RunTests(requestDefinitions, threads, duration)
-	metricsCSV, err := metrics.ToCSV()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error exporting test metrics to CSV: %v\n", err)
-		os.Exit(1)
-	}
-	fmt.Print(metricsCSV)
+	RunTests(requestDefinitions, threads, duration)
 }
