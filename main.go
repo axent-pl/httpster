@@ -35,18 +35,20 @@ func (rd *RequestDefinition) PrepareRequest() (*http.Request, error) {
 }
 
 type RequestMetrics struct {
-	ID            string        `json:"id"`
-	StartTime     time.Time     `json:"start"`
-	Duration      time.Duration `json:"duration"`
-	Status        string        `json:"status"`
-	StatusCode    int           `json:"statusCode"`
-	Error         string        `json:"error"`
-	ConnStartTime time.Time     `json:"connStarted"`
-	ConnDuration  time.Duration `json:"connDuration"`
-	DialStartTime time.Time     `json:"dialStartTime"`
-	DialDuration  time.Duration `json:"dialDuration"`
-	DNSStartTime  time.Time     `json:"dnsStartTime"`
-	DNSDuration   time.Duration `json:"dnsDuration"`
+	ID              string        `json:"id"`
+	StartTime       time.Time     `json:"start"`
+	Duration        time.Duration `json:"duration"`
+	Status          string        `json:"status"`
+	StatusCode      int           `json:"statusCode"`
+	Error           string        `json:"error"`
+	ConnStartTime   time.Time     `json:"connStartTime"`
+	ConnDuration    time.Duration `json:"connDuration"`
+	ConnEndTime     time.Time     `json:"connEndTime"`
+	DialStartTime   time.Time     `json:"dialStartTime"`
+	DialDuration    time.Duration `json:"dialDuration"`
+	DNSStartTime    time.Time     `json:"dnsStartTime"`
+	DNSDuration     time.Duration `json:"dnsDuration"`
+	RequestDuration time.Duration `json:"requestDuration"`
 }
 
 func (rm *RequestMetrics) ToCSVRow() []string {
@@ -57,6 +59,7 @@ func (rm *RequestMetrics) ToCSVRow() []string {
 		fmt.Sprintf("%d", rm.ConnDuration.Nanoseconds()),
 		fmt.Sprintf("%d", rm.DialDuration.Nanoseconds()),
 		fmt.Sprintf("%d", rm.DNSDuration.Nanoseconds()),
+		fmt.Sprintf("%d", rm.RequestDuration.Nanoseconds()),
 		rm.Status,
 		fmt.Sprintf("%d", rm.StatusCode),
 		rm.Error,
@@ -64,7 +67,7 @@ func (rm *RequestMetrics) ToCSVRow() []string {
 }
 
 func GetRequestMetricsCSVHeader() []string {
-	return []string{"ID", "StartTime", "Duration_ns", "ConnDuration_ns", "DialDuration_ns", "DNSDuration_ns", "Status", "StatusCode", "Error"}
+	return []string{"ID", "StartTime", "Duration_ns", "ConnDuration_ns", "DialDuration_ns", "DNSDuration_ns", "RequestDuration_ns", "Status", "StatusCode", "Error"}
 }
 
 func MakeRequest(requestDefinition *RequestDefinition) (RequestMetrics, error) {
@@ -90,9 +93,13 @@ func MakeRequest(requestDefinition *RequestDefinition) (RequestMetrics, error) {
 		},
 		ConnectDone: func(network, addr string, err error) {
 			requestMetrics.DialDuration = time.Since(requestMetrics.DialStartTime)
+			requestMetrics.ConnEndTime = time.Now()
 		},
 		GotConn: func(info httptrace.GotConnInfo) {
 			requestMetrics.ConnDuration = time.Since(requestMetrics.ConnStartTime)
+		},
+		WroteRequest: func(info httptrace.WroteRequestInfo) {
+			requestMetrics.RequestDuration = time.Since(requestMetrics.ConnEndTime)
 		},
 	}
 	clientTraceCtx := httptrace.WithClientTrace(req.Context(), clientTrace)

@@ -37,6 +37,8 @@ df['StartTime'] = pd.to_datetime(df['StartTime'])
 ```
 
 From this point you can start your analysis - plot all the distributions, check for anomalies, etc.
+![kde plot](./docs/kde.png)
+![time plot](./docs/conn-duration-timeseries.png)
 
 ## Input format
 
