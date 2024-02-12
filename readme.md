@@ -12,5 +12,5 @@ make build
 bin/httpster --help
 
 # run
-echo '[{"id":"GET/","url":"http://httpbin.org", "method":"GET"},{"id":"GET/anything","url":"http://httpbin.org/anything", "method":"GET"}]' | bin/httpster -duration=10s -threads=2 > out/data.csv
+echo '[{"id":"GET/","url":"http://httpbin.org", "method":"GET"},{"id":"GET/anything","url":"http://httpbin.org/anything", "method":"GET"}]' | bin/httpster -duration=10s -threads=2 1> out/data.csv
 ```

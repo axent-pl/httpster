@@ -150,14 +150,14 @@ func main() {
 
 	err = json.Unmarshal(stdin, &requestDefinitions)
 	if err != nil {
-		fmt.Printf("Error unmarshaling from stdin: %v\n", err)
-		return
+		fmt.Fprintf(os.Stderr, "Error unmarshaling from stdin: %v\n", err)
+		os.Exit(1)
 	}
 
 	duration, err := time.ParseDuration(durationString)
 	if err != nil {
-		fmt.Println("Error parsing duration:", err)
-		return
+		fmt.Fprintf(os.Stderr, "Error parsing duration: %v", err)
+		os.Exit(1)
 	}
 
 	metrics, _ := RunTests(requestDefinitions, threads, duration)
