@@ -2,6 +2,12 @@
 
 A simple load test tool that executes multiple requests with any method (GET, POST, PUT, ...) and returns raw data to perform detailed analysis.
 
+## Motivation
+
+I attempted to conduct load tests to evaluate the latency introduced by some selected API Gateways.
+Unfortunately, tools like "ab" and "wrk" did not provide sufficient information — offering basically mean and standard error — and their output was less than ideal to work with - formated text.
+This prompted the idea to develop a simple tool that could provide raw data for more thorough analysis.
+
 ## Usage
 
 ```shell
