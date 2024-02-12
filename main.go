@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"strings"
 	"sync"
@@ -29,25 +30,33 @@ func (rd *RequestDefinition) PrepareRequest() (*http.Request, error) {
 	for k, v := range rd.Headers {
 		req.Header.Add(k, v)
 	}
+
 	return req, nil
 }
 
 type RequestMetrics struct {
-	ID                   string        `json:"id"`
-	StartTime            time.Time     `json:"start"`
-	Duration             time.Duration `json:"duration"`
-	DurationMilliseconds int64         `json:"durationMilliseconds"`
-	Status               string        `json:"status"`
-	StatusCode           int           `json:"statusCode"`
-	Error                string        `json:"error"`
+	ID            string        `json:"id"`
+	StartTime     time.Time     `json:"start"`
+	Duration      time.Duration `json:"duration"`
+	Status        string        `json:"status"`
+	StatusCode    int           `json:"statusCode"`
+	Error         string        `json:"error"`
+	ConnStartTime time.Time     `json:"connStarted"`
+	ConnDuration  time.Duration `json:"connDuration"`
+	DialStartTime time.Time     `json:"dialStartTime"`
+	DialDuration  time.Duration `json:"dialDuration"`
+	DNSStartTime  time.Time     `json:"dnsStartTime"`
+	DNSDuration   time.Duration `json:"dnsDuration"`
 }
 
 func (rm *RequestMetrics) ToCSVRow() []string {
 	return []string{
 		rm.ID,
 		rm.StartTime.Format(time.RFC3339),
-		rm.Duration.String(),
-		fmt.Sprintf("%d", rm.DurationMilliseconds),
+		fmt.Sprintf("%d", rm.Duration.Nanoseconds()),
+		fmt.Sprintf("%d", rm.ConnDuration.Nanoseconds()),
+		fmt.Sprintf("%d", rm.DialDuration.Nanoseconds()),
+		fmt.Sprintf("%d", rm.DNSDuration.Nanoseconds()),
 		rm.Status,
 		fmt.Sprintf("%d", rm.StatusCode),
 		rm.Error,
@@ -55,18 +64,42 @@ func (rm *RequestMetrics) ToCSVRow() []string {
 }
 
 func GetRequestMetricsCSVHeader() []string {
-	return []string{"ID", "Start Time", "Duration", "Duration Milliseconds", "Status", "StatusCode", "Error"}
+	return []string{"ID", "StartTime", "Duration_ns", "ConnDuration_ns", "DialDuration_ns", "DNSDuration_ns", "Status", "StatusCode", "Error"}
 }
 
-func MakeRequest(client *http.Client, requestDefinition *RequestDefinition) (RequestMetrics, error) {
+func MakeRequest(requestDefinition *RequestDefinition) (RequestMetrics, error) {
 	var requestMetrics RequestMetrics = RequestMetrics{ID: requestDefinition.ID}
 	req, err := requestDefinition.PrepareRequest()
 	if err != nil {
 		requestMetrics.Error = fmt.Sprint(err)
 		return requestMetrics, err
 	}
+
+	clientTrace := &httptrace.ClientTrace{
+		GetConn: func(hostPort string) {
+			requestMetrics.ConnStartTime = time.Now()
+		},
+		DNSStart: func(info httptrace.DNSStartInfo) {
+			requestMetrics.DNSStartTime = time.Now()
+		},
+		DNSDone: func(info httptrace.DNSDoneInfo) {
+			requestMetrics.DNSDuration = time.Since(requestMetrics.DNSStartTime)
+		},
+		ConnectStart: func(network, addr string) {
+			requestMetrics.DialStartTime = time.Now()
+		},
+		ConnectDone: func(network, addr string, err error) {
+			requestMetrics.DialDuration = time.Since(requestMetrics.DialStartTime)
+		},
+		GotConn: func(info httptrace.GotConnInfo) {
+			requestMetrics.ConnDuration = time.Since(requestMetrics.ConnStartTime)
+		},
+	}
+	clientTraceCtx := httptrace.WithClientTrace(req.Context(), clientTrace)
+	req = req.WithContext(clientTraceCtx)
+
 	requestMetrics.StartTime = time.Now()
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		requestMetrics.Error = fmt.Sprint(err)
 		return requestMetrics, err
@@ -75,7 +108,6 @@ func MakeRequest(client *http.Client, requestDefinition *RequestDefinition) (Req
 	requestMetrics.Status = resp.Status
 	requestMetrics.StatusCode = resp.StatusCode
 	requestMetrics.Duration = time.Since(requestMetrics.StartTime)
-	requestMetrics.DurationMilliseconds = requestMetrics.Duration.Milliseconds()
 	return requestMetrics, nil
 }
 
@@ -94,10 +126,9 @@ func RunTests(requestDefinitions []*RequestDefinition, threads int, duration tim
 	for i := 0; i < threads; i++ {
 		go func(i int) {
 			defer wg.Done()
-			client := &http.Client{}
 			for time.Now().Before(stopTime) {
 				for _, reqDefinition := range requestDefinitions {
-					requestMetrics, err := MakeRequest(client, reqDefinition)
+					requestMetrics, err := MakeRequest(reqDefinition)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "Error making request: %v", err)
 					}
