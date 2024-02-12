@@ -28,7 +28,11 @@ func (rd *RequestDefinition) PrepareRequest() (*http.Request, error) {
 		return nil, err
 	}
 	for k, v := range rd.Headers {
-		req.Header.Add(k, v)
+		if strings.EqualFold(k, "host") {
+			req.Host = v
+		} else {
+			req.Header.Add(k, v)
+		}
 	}
 
 	return req, nil
