@@ -1,0 +1,21 @@
+[
+    {
+        "id": "GET /",
+        "url": "http://httpbin.org",
+        "method": "GET"
+    },
+    {
+        "id": "GET /anything",
+        "url": "http://httpbin.org/anything",
+        "method": "GET"
+    },
+    {
+        "id": "PUT /anything",
+        "url": "http://httpbin.org/anything",
+        "method": "PUT",
+        "headers": {
+            "Content-Type": "application/json"
+        },
+        "body": "{\"data\": {\"key1\":\"val1\"}}"
+    }
+]
