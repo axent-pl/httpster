@@ -74,7 +74,7 @@ func GetRequestMetricsCSVHeader() []string {
 	return []string{"ID", "StartTime", "Duration_ns", "ConnDuration_ns", "DialDuration_ns", "DNSDuration_ns", "RequestDuration_ns", "Status", "StatusCode", "Error"}
 }
 
-func MakeRequest(requestDefinition *RequestDefinition) (RequestMetrics, error) {
+func MakeRequest(client *http.Client, requestDefinition *RequestDefinition) (RequestMetrics, error) {
 	var requestMetrics RequestMetrics = RequestMetrics{ID: requestDefinition.ID}
 	req, err := requestDefinition.PrepareRequest()
 	if err != nil {
@@ -110,7 +110,7 @@ func MakeRequest(requestDefinition *RequestDefinition) (RequestMetrics, error) {
 	req = req.WithContext(clientTraceCtx)
 
 	requestMetrics.StartTime = time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		requestMetrics.Error = fmt.Sprint(err)
 		return requestMetrics, err
@@ -137,9 +137,16 @@ func RunTests(requestDefinitions []*RequestDefinition, threads int, duration tim
 	for i := 0; i < threads; i++ {
 		go func(i int) {
 			defer wg.Done()
+			var transport *http.Transport = http.DefaultTransport.(*http.Transport).Clone()
+			transport.MaxConnsPerHost = len(requestDefinitions)
+			transport.MaxIdleConnsPerHost = len(requestDefinitions)
+			var client *http.Client = &http.Client{
+				Timeout:   time.Second * 10,
+				Transport: transport,
+			}
 			for time.Now().Before(stopTime) {
 				for _, reqDefinition := range requestDefinitions {
-					requestMetrics, err := MakeRequest(reqDefinition)
+					requestMetrics, err := MakeRequest(client, reqDefinition)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "Error making request: %v", err)
 					}
