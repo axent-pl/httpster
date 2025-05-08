@@ -18,14 +18,14 @@ make build
 bin/httpster --help
 
 # run
-cat example.json | bin/httpster -duration=30s -threads=4 1> out/data.csv
+cat examples/example.json | bin/httpster -duration=60s -threads=2 > examples/out/data.csv
 ```
 
 Please note the `1>` as all the metrics are sent to the `stdout` whereas all the errors to `stderr`.
 
 ## Analysis
 
-An example notebook containing analysis of the `HTTPster` output can be found [here](https://github.com/axent-pl/httpster/blob/main/analyse.ipynb).
+An example notebook containing analysis of the `HTTPster` output can be found [here](https://github.com/axent-pl/httpster/blob/main/examples/analyse.ipynb).
 
 To load the data from `HTTPster` please start with the following Python snippet:
 ```python
@@ -82,7 +82,7 @@ Example
 [
     {
         "id": "PUT /anything",
-        "url": "http://httpbin/anything",
+        "url": "http://httpbin.org/anything",
         "method": "PUT",
         "headers": {
             "Content-Type": "application/json"
@@ -97,16 +97,18 @@ Example
 `HTTPster` ouutput is in `CSV` format to `stdout`. Any error encountered are outputed to `stderr`. Below is an example of the output
 
 ```csv
-ID,StartTime,Duration_ns,ConnDuration_ns,DialDuration_ns,DNSDuration_ns,Status,StatusCode,Error
-GET /,2024-02-12T12:50:58+01:00,338865000,187818875,146996875,40262209,200 OK,200,
-GET /,2024-02-12T12:50:58+01:00,342826542,188442916,147601250,40228166,200 OK,200,
-GET /,2024-02-12T12:50:58+01:00,343047959,187695292,146739750,40384542,200 OK,200,
-GET /,2024-02-12T12:50:58+01:00,484274459,333713000,292769375,40259625,200 OK,200,
-GET /anything,2024-02-12T12:50:58+01:00,296632375,147367458,145465667,1757708,200 OK,200,
-GET /anything,2024-02-12T12:50:58+01:00,292864292,146642000,145832292,718333,200 OK,200,
-GET /anything,2024-02-12T12:50:58+01:00,293629125,146643958,145827709,703833,200 OK,200,
-GET /anything,2024-02-12T12:50:58+01:00,299385209,149145125,146590250,2280750,200 OK,200,
-PUT /anything,2024-02-12T12:50:59+01:00,298021375,149354792,147107584,2104166,200 OK,200,
-PUT /anything,2024-02-12T12:50:59+01:00,297629958,149104042,147283459,1743791,200 OK,200,
-PUT /anything,2024-02-12T12:50:59+01:00,296908417,148088459,146979500,987750,200 OK,200,
+ID,StartTime,Duration_ns,ConnDuration_ns,DialDuration_ns,DNSDuration_ns,RequestDuration_ns,Status,StatusCode,Error
+GET /,2025-05-08T10:48:04+02:00,243971334,123593959,119537375,2674750,1451209,200 OK,200,
+GET /,2025-05-08T10:48:04+02:00,256501709,130761917,126730792,2680500,188042,200 OK,200,
+GET /anything,2025-05-08T10:48:04+02:00,232518542,115871875,114231875,1535625,124333,200 OK,200,
+PUT /anything,2025-05-08T10:48:04+02:00,245792959,123022958,121187792,1640375,383083,200 OK,200,
+GET /,2025-05-08T10:48:05+02:00,247554000,120774417,118482625,2106958,158167,200 OK,200,
+GET /anything,2025-05-08T10:48:05+02:00,250008542,124358750,123072792,1106709,244958,200 OK,200,
+PUT /anything,2025-05-08T10:48:05+02:00,240371167,118086500,115311458,2569833,161000,200 OK,200,
+GET /anything,2025-05-08T10:48:04+02:00,1330247167,120577708,118012000,2356041,165500,200 OK,200,
+GET /,2025-05-08T10:48:05+02:00,352022667,124687292,122187250,2366959,96625,200 OK,200,
+PUT /anything,2025-05-08T10:48:05+02:00,252183834,124394000,123091667,1170917,211125,200 OK,200,
+GET /,2025-05-08T10:48:06+02:00,244071209,119660500,117751583,1733208,74208,200 OK,200,
+GET /anything,2025-05-08T10:48:06+02:00,251724500,126146500,122811917,3204750,55125,200 OK,200,
+PUT /anything,2025-05-08T10:48:06+02:00,248301708,123567542,122412833,1040125,140375,200 OK,200,
 ```
