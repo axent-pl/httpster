@@ -39,20 +39,22 @@ func (rd *RequestDefinition) PrepareRequest() (*http.Request, error) {
 }
 
 type RequestMetrics struct {
-	ID              string        `json:"id"`
-	StartTime       time.Time     `json:"start"`
-	Duration        time.Duration `json:"duration"`
-	Status          string        `json:"status"`
-	StatusCode      int           `json:"statusCode"`
-	Error           string        `json:"error"`
-	ConnStartTime   time.Time     `json:"connStartTime"`
-	ConnDuration    time.Duration `json:"connDuration"`
-	ConnEndTime     time.Time     `json:"connEndTime"`
-	DialStartTime   time.Time     `json:"dialStartTime"`
-	DialDuration    time.Duration `json:"dialDuration"`
-	DNSStartTime    time.Time     `json:"dnsStartTime"`
-	DNSDuration     time.Duration `json:"dnsDuration"`
-	RequestDuration time.Duration `json:"requestDuration"`
+	ID                  string        `json:"id"`
+	StartTime           time.Time     `json:"start"`
+	Duration            time.Duration `json:"duration"`
+	Status              string        `json:"status"`
+	StatusCode          int           `json:"statusCode"`
+	Error               string        `json:"error"`
+	ConnStartTime       time.Time     `json:"connStartTime"`
+	ConnDuration        time.Duration `json:"connDuration"`
+	ConnEndTime         time.Time     `json:"connEndTime"`
+	DialStartTime       time.Time     `json:"dialStartTime"`
+	DialDuration        time.Duration `json:"dialDuration"`
+	DNSStartTime        time.Time     `json:"dnsStartTime"`
+	DNSDuration         time.Duration `json:"dnsDuration"`
+	RequestDuration     time.Duration `json:"requestDuration"`
+	WroteRequestTime    time.Time     `json:"wroteRequestTime"`
+	ToFirstByteDuration time.Duration `json:"toFirstByteDuration"`
 }
 
 func (rm *RequestMetrics) ToCSVRow() []string {
@@ -103,7 +105,15 @@ func MakeRequest(client *http.Client, requestDefinition *RequestDefinition) (Req
 			requestMetrics.ConnDuration = time.Since(requestMetrics.ConnStartTime)
 		},
 		WroteRequest: func(info httptrace.WroteRequestInfo) {
-			requestMetrics.RequestDuration = time.Since(requestMetrics.ConnEndTime)
+			if requestMetrics.ConnEndTime.IsZero() {
+				requestMetrics.RequestDuration = time.Since(requestMetrics.DialStartTime)
+			} else {
+				requestMetrics.RequestDuration = time.Since(requestMetrics.ConnEndTime)
+			}
+			requestMetrics.WroteRequestTime = time.Now()
+		},
+		GotFirstResponseByte: func() {
+			requestMetrics.ToFirstByteDuration = time.Since(requestMetrics.WroteRequestTime)
 		},
 	}
 	clientTraceCtx := httptrace.WithClientTrace(req.Context(), clientTrace)
